@@ -1,0 +1,44 @@
+{
+  "name": "macos-window-restore",
+  "version": "1.0.0",
+  "description": "A Node.js macOS utility for remembering and restoring window positions when displays change",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "save": "node src/index.js save",
+    "restore": "./restore_windows.sh",
+    "restore-js": "node src/index.js restore",
+    "check": "node src/index.js check",
+    "build": "node-gyp rebuild",
+    "install": "node-gyp rebuild",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "window-restore": "bin/window-restore.js"
+  },
+  "keywords": [
+    "macos",
+    "window",
+    "position",
+    "restore",
+    "utility",
+    "displays"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.1.0"
+  },
+  "devDependencies": {
+    "node-gyp": "^10.0.1",
+    "nan": "^2.17.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "os": [
+    "darwin"
+  ],
+  "gypfile": true
+}
