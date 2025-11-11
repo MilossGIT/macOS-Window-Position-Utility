@@ -13,16 +13,18 @@ A Node.js utility for macOS that remembers and restores window positions when di
 
 ## Installation
 
-1. Clone or download this repository
-2. Navigate to the project directory
-3. Install dependencies:
+1. Clone this repository:
+```bash
+git clone https://github.com/MilossGIT/macOS-Window-Position-Utility.git
+cd macOS-Window-Position-Utility
+```
 
+2. Install dependencies:
 ```bash
 npm install
 ```
 
-4. (Optional) Build the native module for better performance:
-
+3. (Optional) Build the native module for better performance:
 ```bash
 npm run build
 ```
