@@ -15,7 +15,55 @@ export class WindowManager {
         this.initNativeModule();
     }
 
-    async checkAccessibilityPermissions() {
+    async enhanceChromeWindows(windows) {
+        try {
+            const { execSync } = await import('child_process');
+
+            // Simple approach: just get Chrome window titles
+            const result = execSync(`osascript -e '
+                tell application "System Events"
+                    tell application process "Google Chrome"
+                        set windowTitles to {}
+                        repeat with w in (every window whose subrole is "AXStandardWindow")
+                            try
+                                set end of windowTitles to (title of w as string)
+                            end try
+                        end repeat
+                        return windowTitles
+                    end tell
+                end tell
+            '`, {
+                encoding: 'utf8',
+                timeout: 5000
+            });
+
+            // Parse the titles
+            const titles = result.trim().split(', ').map(t => t.trim());
+
+            // Enhance Chrome windows in the original array
+            let chromeIndex = 0;
+            const enhancedWindows = windows.map(window => {
+                if (window.app === 'Google Chrome' || window.app === 'Code') {
+                    if (window.app === 'Google Chrome' && chromeIndex < titles.length) {
+                        const title = titles[chromeIndex];
+                        chromeIndex++;
+                        return {
+                            ...window,
+                            title: title || window.title
+                        };
+                    }
+                }
+                return window;
+            });
+
+            console.log(`Enhanced ${chromeIndex} Chrome windows with titles`);
+            return enhancedWindows;
+
+        } catch (error) {
+            console.warn('Failed to enhance Chrome windows:', error.message);
+            return windows; // Return original windows if enhancement fails
+        }
+    }    async checkAccessibilityPermissions() {
         try {
             const { execSync } = await import('child_process');
             const script = `
@@ -38,9 +86,7 @@ export class WindowManager {
         } catch (error) {
             return false;
         }
-    }
-
-    async promptForPermissions() {
+    }    async promptForPermissions() {
         console.log('\n🚫 Accessibility permissions required for window restoration!');
         console.log('\nTo grant permissions:');
         console.log('1. Open System Preferences (or System Settings on macOS Ventura+)');
@@ -70,7 +116,9 @@ export class WindowManager {
             let windows;
 
             if (this.nativeModule) {
+                // Use native module for speed, but enhance Chrome windows with AppleScript
                 windows = this.nativeModule.getAllWindows();
+                windows = await this.enhanceChromeWindows(windows);
             } else {
                 windows = await this.getWindowsViaAppleScript();
             }
@@ -87,9 +135,7 @@ export class WindowManager {
             console.error('Error saving window positions:', error);
             throw error;
         }
-    }
-
-    async restorePositions() {
+    }    async restorePositions() {
         try {
             const configData = await fs.readFile(this.configPath, 'utf8');
             const config = JSON.parse(configData);

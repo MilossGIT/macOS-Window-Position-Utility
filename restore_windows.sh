@@ -44,7 +44,45 @@ for (const [appName, windows] of Object.entries(appGroups)) {
             continue;
         }
 
-        const script = \`
+        let script;
+        if (appName === 'Google Chrome' && window.title && window.title.trim() !== '') {
+            // Enhanced Chrome handling with title matching
+            script = \`
+tell application \"System Events\"
+    try
+        tell application process \"Google Chrome\"
+            set theWindows to (every window whose subrole is \"AXStandardWindow\")
+            set targetWindow to missing value
+
+            -- Try to find window by title (look for page name in title)
+            set pageTitle to \"\${window.title.split(' - ')[0].replace(/\"/g, '\\\\\\\\')}\"
+            repeat with w in theWindows
+                if (title of w) contains pageTitle then
+                    set targetWindow to w
+                    exit repeat
+                end if
+            end repeat
+
+            -- If no match found, use the window at the specified index
+            if targetWindow is missing value and (count of theWindows) > \${i} then
+                set targetWindow to item \${i + 1} of theWindows
+            end if
+
+            if targetWindow is not missing value then
+                set position of targetWindow to {\${window.x}, \${window.y}}
+                set size of targetWindow to {\${window.width}, \${window.height}}
+                return \"success\"
+            else
+                return \"no matching window\"
+            end if
+        end tell
+    on error errMsg
+        return \"error: \" & errMsg
+    end try
+end tell\`;
+        } else {
+            // Standard handling for other apps
+            script = \`
 tell application \"System Events\"
     try
         tell application process \"\${appName.replace(/\"/g, '\\\\\\\\')}\"
@@ -62,6 +100,7 @@ tell application \"System Events\"
         return \"error: \" & errMsg
     end try
 end tell\`;
+        }
 
         try {
             const result = execSync(\`osascript -e '\${script.replace(/'/g, '\\\"')}'\`, {
