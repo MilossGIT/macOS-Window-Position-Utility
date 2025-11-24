@@ -19,51 +19,181 @@ export class WindowManager {
         try {
             const { execSync } = await import('child_process');
 
-            // Simple approach: just get Chrome window titles
-            const result = execSync(`osascript -e '
-                tell application "System Events"
-                    tell application process "Google Chrome"
-                        set windowTitles to {}
-                        repeat with w in (every window whose subrole is "AXStandardWindow")
-                            try
-                                set end of windowTitles to (title of w as string)
-                            end try
-                        end repeat
-                        return windowTitles
-                    end tell
-                end tell
-            '`, {
+            // Check if Chrome is running first to avoid unnecessary AppleScript calls
+            const chromeWindows = windows.filter(w => w.app === 'Google Chrome');
+            if (chromeWindows.length === 0) {
+                return windows;
+            }
+
+            // Simplified and robust AppleScript
+            const result = execSync(`osascript -e 'tell application "System Events"
+                try
+                    if exists (application process "Google Chrome") then
+                        tell application process "Google Chrome"
+                            set windowTitles to {}
+                            repeat with w in (every window whose subrole is "AXStandardWindow")
+                                try
+                                    set windowTitle to title of w as string
+                                    if windowTitle is not missing value and windowTitle is not "" then
+                                        set end of windowTitles to windowTitle
+                                    else
+                                        set end of windowTitles to "Chrome Window"
+                                    end if
+                                on error
+                                    set end of windowTitles to "Chrome Window"
+                                end try
+                            end repeat
+
+                            set AppleScript'"'"'s text item delimiters to "|~|"
+                            set titleString to windowTitles as string
+                            set AppleScript'"'"'s text item delimiters to ""
+                            return titleString
+                        end tell
+                    else
+                        return ""
+                    end if
+                on error errMsg
+                    return ""
+                end try
+            end tell'`, {
                 encoding: 'utf8',
-                timeout: 5000
+                timeout: 8000,
+                killSignal: 'SIGKILL'
             });
 
-            // Parse the titles
-            const titles = result.trim().split(', ').map(t => t.trim());
+            // Check for errors or empty result
+            if (result.trim() === '') {
+                console.warn('Chrome enhancement failed or no windows found');
+                return windows;
+            }
+
+            // Parse the titles using our custom delimiter
+            const titles = result.trim().split('|~|').filter(t => t.trim() !== '');
 
             // Enhance Chrome windows in the original array
             let chromeIndex = 0;
             const enhancedWindows = windows.map(window => {
-                if (window.app === 'Google Chrome' || window.app === 'Code') {
-                    if (window.app === 'Google Chrome' && chromeIndex < titles.length) {
-                        const title = titles[chromeIndex];
-                        chromeIndex++;
-                        return {
-                            ...window,
-                            title: title || window.title
-                        };
-                    }
+                if (window.app === 'Google Chrome' && chromeIndex < titles.length) {
+                    const title = titles[chromeIndex];
+                    chromeIndex++;
+                    return {
+                        ...window,
+                        title: title || window.title
+                    };
                 }
                 return window;
             });
 
-            console.log(`Enhanced ${chromeIndex} Chrome windows with titles`);
+            if (chromeIndex > 0) {
+                console.log(`Enhanced ${chromeIndex} Chrome windows with titles`);
+            }
             return enhancedWindows;
 
         } catch (error) {
-            console.warn('Failed to enhance Chrome windows:', error.message);
+            if (error.signal === 'SIGKILL') {
+                console.warn('Chrome enhancement timed out - skipping title enhancement');
+            } else {
+                console.warn('Failed to enhance Chrome windows:', error.message);
+            }
             return windows; // Return original windows if enhancement fails
         }
-    }    async checkAccessibilityPermissions() {
+    }
+
+    async enhanceAllWindows(windows) {
+        try {
+            const { execSync } = await import('child_process');
+
+            // Group windows by app
+            const appGroups = {};
+            windows.forEach(window => {
+                if (!appGroups[window.app]) {
+                    appGroups[window.app] = [];
+                }
+                appGroups[window.app].push(window);
+            });
+
+            // Apps that benefit from title enhancement (have multiple windows often)
+            const appsToEnhance = ['Google Chrome', 'Code', 'Visual Studio Code', 'Finder', 'Terminal'];
+
+            let enhancedCount = 0;
+            const enhancedWindows = [...windows];
+
+            for (const appName of appsToEnhance) {
+                if (appGroups[appName] && appGroups[appName].length > 1) {
+                    try {
+                        const result = execSync(`osascript -e 'tell application "System Events"
+                            try
+                                if exists (application process "${appName.replace(/"/g, '\\"')}") then
+                                    tell application process "${appName.replace(/"/g, '\\"')}"
+                                        set windowTitles to {}
+                                        repeat with w in (every window whose subrole is "AXStandardWindow")
+                                            try
+                                                set windowTitle to title of w as string
+                                                if windowTitle is not missing value and windowTitle is not "" then
+                                                    set end of windowTitles to windowTitle
+                                                else
+                                                    set end of windowTitles to "${appName} Window"
+                                                end if
+                                            on error
+                                                set end of windowTitles to "${appName} Window"
+                                            end try
+                                        end repeat
+
+                                        set AppleScript'"'"'s text item delimiters to "|~|"
+                                        set titleString to windowTitles as string
+                                        set AppleScript'"'"'s text item delimiters to ""
+                                        return titleString
+                                    end tell
+                                else
+                                    return ""
+                                end if
+                            on error errMsg
+                                return ""
+                            end try
+                        end tell'`, {
+                            encoding: 'utf8',
+                            timeout: 5000,
+                            killSignal: 'SIGKILL'
+                        });
+
+                        if (result.trim() !== '') {
+                            const titles = result.trim().split('|~|').filter(t => t.trim() !== '');
+
+                            // Update the windows with proper titles
+                            let appWindowIndex = 0;
+                            for (let i = 0; i < enhancedWindows.length; i++) {
+                                if (enhancedWindows[i].app === appName && appWindowIndex < titles.length) {
+                                    enhancedWindows[i] = {
+                                        ...enhancedWindows[i],
+                                        title: titles[appWindowIndex] || enhancedWindows[i].title
+                                    };
+                                    appWindowIndex++;
+                                }
+                            }
+
+                            if (appWindowIndex > 0) {
+                                enhancedCount += appWindowIndex;
+                            }
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to enhance ${appName} windows:`, error.message);
+                    }
+                }
+            }
+
+            if (enhancedCount > 0) {
+                console.log(`Enhanced ${enhancedCount} windows with titles across multiple apps`);
+            }
+
+            return enhancedWindows;
+
+        } catch (error) {
+            console.warn('Window enhancement failed:', error.message);
+            return windows;
+        }
+    }
+
+    async checkAccessibilityPermissions() {
         try {
             const { execSync } = await import('child_process');
             const script = `
@@ -116,9 +246,9 @@ export class WindowManager {
             let windows;
 
             if (this.nativeModule) {
-                // Use native module for speed, but enhance Chrome windows with AppleScript
+                // Use native module for speed, but enhance windows with AppleScript
                 windows = this.nativeModule.getAllWindows();
-                windows = await this.enhanceChromeWindows(windows);
+                windows = await this.enhanceAllWindows(windows);
             } else {
                 windows = await this.getWindowsViaAppleScript();
             }
@@ -272,6 +402,12 @@ export class WindowManager {
                             -- If no specific title match, use the first available window
                             if targetWindow is missing value then
                                 set targetWindow to first window of theWindows
+                            end if
+
+                            -- Check if window is minimized and unminimize if needed
+                            if value of attribute "AXMinimized" of targetWindow is true then
+                                set value of attribute "AXMinimized" of targetWindow to false
+                                delay 0.2
                             end if
 
                             -- Set position and size

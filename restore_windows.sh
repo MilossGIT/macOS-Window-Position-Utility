@@ -69,6 +69,14 @@ tell application \"System Events\"
             end if
 
             if targetWindow is not missing value then
+                -- Check if window is minimized and unminimize if needed
+                try
+                    if value of attribute \"AXMinimized\" of targetWindow is true then
+                        set value of attribute \"AXMinimized\" of targetWindow to false
+                        delay 0.2
+                    end if
+                end try
+
                 set position of targetWindow to {\${window.x}, \${window.y}}
                 set size of targetWindow to {\${window.width}, \${window.height}}
                 return \"success\"
@@ -87,13 +95,22 @@ tell application \"System Events\"
     try
         tell application process \"\${appName.replace(/\"/g, '\\\\\\\\')}\"
             set theWindows to (every window whose subrole is \"AXStandardWindow\")
-            if (count of theWindows) > \${i} then
-                set targetWindow to item \${i + 1} of theWindows
-                set position of targetWindow to {\${window.x}, \${window.y}}
-                set size of targetWindow to {\${window.width}, \${window.height}}
-                return \"success\"
+            if (count of theWindows) > ${i} then
+                set targetWindow to item ${i + 1} of theWindows
+
+                -- Check if window is minimized and unminimize if needed
+                try
+                    if value of attribute "AXMinimized" of targetWindow is true then
+                        set value of attribute "AXMinimized" of targetWindow to false
+                        delay 0.2
+                    end if
+                end try
+
+                set position of targetWindow to {${window.x}, ${window.y}}
+                set size of targetWindow to {${window.width}, ${window.height}}
+                return "success"
             else
-                return \"no window\"
+                return "no window"
             end if
         end tell
     on error errMsg

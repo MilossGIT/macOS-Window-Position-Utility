@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/index.js",
     "save": "node src/index.js save",
-    "restore": "./restore_windows.sh",
+    "restore": "node restore.cjs",
+    "restore-shell": "./restore_windows.sh",
     "restore-js": "node src/index.js restore",
     "check": "node src/index.js check",
     "build": "node-gyp rebuild",
